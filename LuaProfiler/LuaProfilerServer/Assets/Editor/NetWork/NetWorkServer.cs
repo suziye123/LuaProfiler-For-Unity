@@ -44,37 +44,6 @@ namespace MikuLuaProfiler
     using System.Threading;
     using UnityEditor;
 
-    [InitializeOnLoad]
-    public static class StartUp
-    {
-        static bool isPlaying = false;
-
-        static StartUp()
-        {
-#if UNITY_2017_1_OR_NEWER
-            EditorApplication.playModeStateChanged += (state) =>
-            {
-                if (isPlaying == true && EditorApplication.isPlaying == false)
-                {
-                    NetWorkServer.Close();
-                }
-
-                isPlaying = EditorApplication.isPlaying;
-            };
-#else
-            EditorApplication.playmodeStateChanged += () =>
-            {
-                if (isPlaying == true && EditorApplication.isPlaying == false)
-                {
-                    NetWorkServer.RealClose();
-                }
-
-                isPlaying = EditorApplication.isPlaying;
-            };
-#endif
-        }
-    }
-
     public static class NetWorkServer
     {
         private static TcpListener tcpLister;
@@ -110,6 +79,13 @@ namespace MikuLuaProfiler
         public static void RegisterOnReceiveDiffInfo(Action<LuaDiffInfo> onReceive)
         {
             m_onReceiveDiff = onReceive;
+        }
+
+        public static void UnRegisterReceive()
+        {
+            m_onReceiveSample = null;
+            m_onReceiveRef = null;
+            m_onReceiveDiff = null;
         }
 
         public static void BeginListen(string ip, int port)
@@ -149,8 +125,9 @@ namespace MikuLuaProfiler
                     tcpClient = tcpLister.AcceptTcpClient();
                 }
             }
-            catch
+            catch(Exception e)
             {
+                UnityEngine.Debug.LogError(e);
                 UnityEngine.Debug.Log("<color=#ff0000>start fail</color>");
                 Close();
                 return;
@@ -347,40 +324,10 @@ namespace MikuLuaProfiler
         private static Dictionary<int, string> m_strCacheDict = new Dictionary<int, string>(4096);
         public static Sample Deserialize(BinaryReader br)
         {
-            Sample s = Sample.Create();
-
-            s.calls = br.ReadInt32();
-            s.frameCount = br.ReadInt32();
-            s.fps = br.ReadSingle();
-            s.pss = br.ReadInt32();
-            s.power = br.ReadSingle();
-            s.costLuaGC = br.ReadInt32();
-            s.costMonoGC = br.ReadInt32();
-            s.name = ReadString(br);
-
-            s.costTime = br.ReadInt32();
-            s.currentLuaMemory = br.ReadInt32();
-            s.currentMonoMemory = br.ReadInt32();
-            int count = br.ReadUInt16();
-            for (int i = 0, imax = count; i < imax; i++)
-            {
-                Deserialize(br).fahter = s;
-            }
-
-            int lua_gc = 0;
-            foreach (var item in s.childs)
-            {
-                lua_gc += item.costLuaGC;
-            }
-            s.costLuaGC = Math.Max(lua_gc, s.costLuaGC);
-            int mono_gc = 0;
-            foreach (var item in s.childs)
-            {
-                mono_gc += item.costMonoGC;
-            }
-            s.costMonoGC = Math.Max(mono_gc, s.costMonoGC);
+            Sample s = Sample.Deserialize(br);
             return s;
         }
+
         public static LuaRefInfo DeserializeRef(BinaryReader br)
         {
             LuaRefInfo refInfo = LuaRefInfo.Create();

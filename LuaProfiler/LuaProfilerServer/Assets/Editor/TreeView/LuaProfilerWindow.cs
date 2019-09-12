@@ -186,6 +186,7 @@ namespace MikuLuaProfiler
             powrChart = null;
             Destory(powrChart);
             m_SearchField.downOrUpArrowKeyPressed += m_TreeView.SetFocusAndEnsureSelectedItem;
+            OpenLocalMode();
 
             EditorApplication.update -= m_TreeView.DequeueSample;
             EditorApplication.update += m_TreeView.DequeueSample;
@@ -327,7 +328,12 @@ namespace MikuLuaProfiler
             #endregion
 
             #region history
-            bool flag = GUILayout.Toggle(LuaDeepProfilerSetting.Instance.isRecord, "Record", EditorStyles.toolbarButton, GUILayout.Height(30));
+            string recordName = "Record";
+            if (!LuaDeepProfilerSetting.Instance.isRecord)
+            {
+                recordName = "Stop";
+            }
+            bool flag = GUILayout.Toggle(LuaDeepProfilerSetting.Instance.isRecord, recordName, EditorStyles.toolbarButton, GUILayout.Height(30));
             if (flag != LuaDeepProfilerSetting.Instance.isRecord)
             {
                 LuaDeepProfilerSetting.Instance.isRecord = flag;
@@ -336,41 +342,52 @@ namespace MikuLuaProfiler
             #endregion
 
             #region socket
-
-            if (GUILayout.Button("OpenService", EditorStyles.toolbarButton, GUILayout.Height(30)))
+            bool oldIsLocal = LuaDeepProfilerSetting.Instance.isLocal;
+            LuaDeepProfilerSetting.Instance.isLocal = GUILayout.Toggle(LuaDeepProfilerSetting.Instance.isLocal, "local mode", EditorStyles.toolbarButton, GUILayout.Height(30));
+            if (!oldIsLocal && LuaDeepProfilerSetting.Instance.isLocal)
             {
-                ClearConsole();
-                NetWorkServer.RealClose();
-                currentFrameIndex = 0;
-                m_TreeView.Clear(true);
-                NetWorkServer.RegisterOnReceiveSample(m_TreeView.LoadRootSample);
-                NetWorkServer.RegisterOnReceiveRefInfo(m_luaRefScrollView.DelRefInfo);
-                NetWorkServer.RegisterOnReceiveDiffInfo(m_luaDiffScrollView.DelDiffInfo);
-                NetWorkServer.BeginListen("0.0.0.0", port);
-            }
-            GUILayout.Label("port:", GUILayout.Height(30), GUILayout.Width(35));
-            port = EditorGUILayout.IntField(port, GUILayout.Height(16), GUILayout.Width(50));
-
-            if (GUILayout.Button("CloseService", EditorStyles.toolbarButton, GUILayout.Height(30)))
-            {
-                ClearConsole();
-                NetWorkServer.RealClose();
+                OpenLocalMode();
             }
 
-            GUILayout.Space(25);
-            if (GUILayout.Button("MarkLuaRecord", EditorStyles.toolbarButton, GUILayout.Height(30)))
+            if (!LuaDeepProfilerSetting.Instance.isLocal)
             {
-                NetWorkServer.SendCmd(1);
-                m_luaDiffScrollView.MarkIsRecord();
+                if (GUILayout.Button("OpenService", EditorStyles.toolbarButton, GUILayout.Height(30)))
+                {
+                    ClearConsole();
+                    NetWorkServer.RealClose();
+                    currentFrameIndex = 0;
+                    m_TreeView.Clear(true);
+                    LuaProfiler.UnRegistReceive();
+                    NetWorkServer.RegisterOnReceiveSample(m_TreeView.LoadRootSample);
+                    NetWorkServer.RegisterOnReceiveRefInfo(m_luaRefScrollView.DelRefInfo);
+                    NetWorkServer.RegisterOnReceiveDiffInfo(m_luaDiffScrollView.DelDiffInfo);
+                    NetWorkServer.BeginListen("0.0.0.0", port);
+                }
+                GUILayout.Label("port:", GUILayout.Height(30), GUILayout.Width(35));
+                port = EditorGUILayout.IntField(port, GUILayout.Height(16), GUILayout.Width(50));
+
+                if (GUILayout.Button("CloseService", EditorStyles.toolbarButton, GUILayout.Height(30)))
+                {
+                    ClearConsole();
+                    NetWorkServer.RealClose();
+                }
+
+                GUILayout.Space(25);
+                if (GUILayout.Button("MarkLuaRecord", EditorStyles.toolbarButton, GUILayout.Height(30)))
+                {
+                    NetWorkServer.SendCmd(1);
+                    m_luaDiffScrollView.MarkIsRecord();
+                }
+                if (GUILayout.Button("DiffRecord", EditorStyles.toolbarButton, GUILayout.Height(30)))
+                {
+                    NetWorkServer.SendCmd(2);
+                }
+                if (GUILayout.Button("ClearDiff", EditorStyles.toolbarButton, GUILayout.Height(30)))
+                {
+                    m_luaDiffScrollView.Clear();
+                }
             }
-            if (GUILayout.Button("DiffRecord", EditorStyles.toolbarButton, GUILayout.Height(30)))
-            {
-                NetWorkServer.SendCmd(2);
-            }
-            if (GUILayout.Button("ClearDiff", EditorStyles.toolbarButton, GUILayout.Height(30)))
-            {
-                m_luaDiffScrollView.Clear();
-            }
+
             GUILayout.Space(20);
             if (GUILayout.Button("AddLuaDir", EditorStyles.toolbarButton, GUILayout.Height(30)))
             {
@@ -1071,7 +1088,20 @@ namespace MikuLuaProfiler
             CachedVec[1].Set(downPos.x, downPos.y, 0f);
             Handles.DrawAAPolyLine(3.5f, CachedVec);
         }
-            #endregion
+
+        private void OpenLocalMode()
+        {
+            ClearConsole();
+            NetWorkServer.RealClose();
+            currentFrameIndex = 0;
+            m_TreeView.Clear(true);
+            NetWorkServer.UnRegisterReceive();
+            LuaProfiler.RegisterOnReceiveSample(m_TreeView.LoadRootSample);
+            LuaProfiler.RegisterOnReceiveRefInfo(m_luaRefScrollView.DelRefInfo);
+            LuaProfiler.RegisterOnReceiveDiffInfo(m_luaDiffScrollView.DelDiffInfo);
+        }
+
+        #endregion
 
         // Add menu named "My Window" to the Window menu
         [MenuItem("Window/Lua Profiler Window")]
